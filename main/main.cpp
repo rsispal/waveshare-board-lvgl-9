@@ -14,12 +14,32 @@
 #include "esp_lvgl_port.h"
 
 #include "domains/definitions.h"
+#include "domains/io/i2c/i2c.cpp"
 
 
 #include <stdio.h>
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+
+/**
+ * Print the memory usage periodically
+ * @param param
+ */
+void lvgl_memory_monitor( void * pvParameters ) {
+
+    while (1)
+    {
+        lv_mem_monitor_t mon;
+        lv_mem_monitor(&mon);
+        ESP_LOGI("LOGGER", "used: %6d (%3d %%), frag: %3d %%, biggest free: %6d\n",
+        (int)mon.total_size - mon.free_size, mon.used_pct, mon.frag_pct,
+        (int)mon.free_biggest_size);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
 
 void log_memory_usage()
 {
@@ -185,21 +205,60 @@ err:
     return ret;
 }
 
+
+
+I2CMaster *i2cMaster = nullptr;
+i2c_master_dev_handle_t gt911Slave;
+
+void initialiseI2CMaster() {
+   i2cMaster = new I2CMaster(0,I2C_MASTER_SDA_IO,I2C_MASTER_SCL_IO,I2C_MASTER_FREQ_HZ, I2C_MASTER_TIMEOUT_MS);
+   i2cMaster->begin();
+}
+
+
+
 static esp_err_t app_touch_init(void)
 {
-    /* Initilize I2C */
-    const i2c_config_t i2c_conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = I2C_MASTER_SDA_IO,
-        .scl_io_num = I2C_MASTER_SCL_IO,
-        .sda_pullup_en = GPIO_PULLUP_DISABLE,
-        .scl_pullup_en = GPIO_PULLUP_DISABLE,
-        .master = {
-            .clk_speed = I2C_MASTER_FREQ_HZ,
-        },
-    };
-    ESP_RETURN_ON_ERROR(i2c_param_config(I2C_MASTER_NUM, &i2c_conf), TAG, "I2C configuration failed");
-    ESP_RETURN_ON_ERROR(i2c_driver_install(I2C_MASTER_NUM, i2c_conf.mode, 0, 0, 0), TAG, "I2C initialization failed");
+    // /* Initilize I2C */
+    // const i2c_config_t i2c_conf = {
+    //     .mode = I2C_MODE_MASTER,
+    //     .sda_io_num = I2C_MASTER_SDA_IO,
+    //     .scl_io_num = I2C_MASTER_SCL_IO,
+    //     .sda_pullup_en = GPIO_PULLUP_ENABLE,
+    //     .scl_pullup_en = GPIO_PULLUP_ENABLE,
+    //     .master = {
+    //         .clk_speed = I2C_MASTER_FREQ_HZ,
+    //     },
+    // };
+    // ESP_RETURN_ON_ERROR(i2c_param_config(I2C_MASTER_NUM, &i2c_conf), TAG, "I2C configuration failed");
+    // ESP_RETURN_ON_ERROR(i2c_driver_install(I2C_MASTER_NUM, i2c_conf.mode, 0, 0, 0), TAG, "I2C initialization failed");
+
+    // /* Initialize touch HW */
+    // const esp_lcd_touch_config_t tp_cfg = {
+    //     .x_max = LCD_H_RES,
+    //     .y_max = LCD_V_RES,
+    //     .rst_gpio_num = GPIO_NUM_NC,
+    //     .int_gpio_num = GPIO_NUM_NC,
+    //     .levels = {
+    //         .reset = 0,
+    //         .interrupt = 0,
+    //     },
+    //     .flags = {
+    //         .swap_xy = 0,
+    //         .mirror_x = 0,
+    //         .mirror_y = 0,
+    //     },
+    // };
+    // esp_lcd_panel_io_handle_t tp_io_handle = NULL;
+    // const esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+    // esp_lcd_new_panel_io_i2c((esp_lcd_i2c_bus_handle_t)I2C_MASTER_NUM, &tp_io_config, &tp_io_handle);
+    // return esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &touch_handle);
+
+
+    initialiseI2CMaster();
+    esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+    tp_io_config.scl_speed_hz = i2cMaster->frequency;
+
 
     /* Initialize touch HW */
     const esp_lcd_touch_config_t tp_cfg = {
@@ -215,11 +274,11 @@ static esp_err_t app_touch_init(void)
             .swap_xy = 0,
             .mirror_x = 0,
             .mirror_y = 0,
-        },
+        }
     };
     esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-    const esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
-    esp_lcd_new_panel_io_i2c((esp_lcd_i2c_bus_handle_t)I2C_MASTER_NUM, &tp_io_config, &tp_io_handle);
+
+    esp_lcd_new_panel_io_i2c_v2(i2cMaster->bus_handle,  &tp_io_config, &tp_io_handle);
     return esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &touch_handle);
 }
 
@@ -235,10 +294,12 @@ static esp_err_t app_lvgl_init(void)
     };
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port initialization failed");
 
-    uint32_t buff_size = LCD_H_RES * 120;
-#if LCD_LVGL_FULL_REFRESH || LCD_LVGL_DIRECT_MODE
-    buff_size = LCD_H_RES * LCD_V_RES;
-#endif
+    uint32_t buff_size = LCD_H_RES * 100 * sizeof(lv_color_t);
+    ESP_LOGI(TAG, "LVGL PSRAM Buffer Size: %lu", buff_size);
+
+    #if LCD_LVGL_FULL_REFRESH || LCD_LVGL_DIRECT_MODE
+        buff_size = LCD_H_RES * LCD_V_RES;
+    #endif
 
     /* Add LCD screen */
     ESP_LOGD(TAG, "Add LCD screen");
@@ -322,8 +383,12 @@ static void app_main_display(void)
     lv_obj_add_event_cb(btn, _app_button_cb, LV_EVENT_CLICKED, NULL);
 }
 
+
+
 extern "C" void app_main(void)
 {
+
+
     /* LCD HW initialization */
     ESP_ERROR_CHECK(app_lcd_init());
 
@@ -336,5 +401,8 @@ extern "C" void app_main(void)
     /* Show LVGL objects */
     lvgl_port_lock(0);
     app_main_display();
-    lvgl_port_unlock();  
+    lvgl_port_unlock();
+
+    // xTaskCreate(&lvgl_memory_monitor, "lvgl_memory_monitor", 2048,NULL,4,NULL );
+    
 }

@@ -6,5 +6,6 @@
     ],
     "idf.flashType": "UART",
     "idf.port": "/dev/tty.usbmodem83101",
+    "idf.customExtraPaths": "/Users/rav/.espressif/tools/xtensa-esp-elf-gdb/14.2_20240403/xtensa-esp-elf-gdb/bin:/Users/rav/.espressif/tools/riscv32-esp-elf-gdb/14.2_20240403/riscv32-esp-elf-gdb/bin:/Users/rav/.espressif/tools/xtensa-esp-elf/esp-13.2.0_20240530/xtensa-esp-elf/bin:/Users/rav/.espressif/tools/riscv32-esp-elf/esp-13.2.0_20240530/riscv32-esp-elf/bin:/Users/rav/.espressif/tools/esp32ulp-elf/2.38_20240113/esp32ulp-elf/bin:/Users/rav/.espressif/tools/cmake/3.24.0/CMake.app/Contents/bin:/Users/rav/.espressif/tools/openocd-esp32/v0.12.0-esp32-20240821/openocd-esp32/bin:/Users/rav/.espressif/tools/ninja/1.11.1:/Users/rav/.espressif/tools/esp-rom-elfs/20240305",
     "C_Cpp.default.compilerPath": "/usr/bin/clang"
 }
