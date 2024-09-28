@@ -16,6 +16,10 @@
 #include "domains/definitions.h"
 #include "domains/io/i2c/i2c.cpp"
 
+#include "domains/display/screens/BaseScreen.cpp"
+#include "domains/display/screens/BootScreen.cpp"
+#include "domains/display/screens/MainScreen.cpp"
+#include "domains/display/screens/SomeOtherScreen.cpp"
 
 #include <stdio.h>
 #include "esp_system.h"
@@ -317,7 +321,7 @@ static esp_err_t app_lvgl_init(void)
         },
         .color_format = LV_COLOR_FORMAT_RGB565,
         .flags = {
-            .buff_dma = false,
+            .buff_dma = true,
             .buff_spiram = true,
             .sw_rotate = false,
             .swap_bytes = false,
@@ -384,6 +388,10 @@ static void app_main_display(void)
 }
 
 
+BaseScreen *baseScreen = nullptr;
+BootScreen *bootScreen = nullptr;
+MainScreen *mainScreen = nullptr;
+SomeOtherScreen *someOtherScreen = nullptr;
 
 extern "C" void app_main(void)
 {
@@ -398,11 +406,45 @@ extern "C" void app_main(void)
     /* LVGL initialization */
     ESP_ERROR_CHECK(app_lvgl_init());
 
+    lv_disp_t *dispp = lv_disp_get_default();
+    lv_theme_t *theme = lv_theme_default_init(dispp, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
+    lv_disp_set_theme(dispp, theme);
+
+
     /* Show LVGL objects */
     lvgl_port_lock(0);
     app_main_display();
     lvgl_port_unlock();
+    vTaskDelay(pdMS_TO_TICKS(500));
 
+    baseScreen= new BaseScreen();
+    bootScreen = new BootScreen(baseScreen);
+    mainScreen = new MainScreen(baseScreen);
+    someOtherScreen = new SomeOtherScreen(baseScreen);
     // xTaskCreate(&lvgl_memory_monitor, "lvgl_memory_monitor", 2048,NULL,4,NULL );
+
+while (1) {
+    lvgl_port_lock(0);
+    bootScreen->init();
+    bootScreen->show();
+    lvgl_port_unlock();
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    lvgl_port_lock(0);
+    mainScreen->init();
+    mainScreen->show();
+    lvgl_port_unlock();
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+        
+    lvgl_port_lock(0);
+    someOtherScreen->init();
+    someOtherScreen->show();
+    lvgl_port_unlock();
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+}
+
     
 }
