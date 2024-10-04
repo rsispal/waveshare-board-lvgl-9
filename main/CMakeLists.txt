@@ -12,6 +12,10 @@ lvgl_port_create_c_image("images/icons/RST5050.png" "images/icons/" "ARGB8888" "
 lvgl_port_create_c_image("images/icons/VM5050.png" "images/icons/" "ARGB8888" "NONE")
 lvgl_port_add_images(${COMPONENT_LIB} "images/icons/")
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-enum-enum-conversion>)
+endif()
+
 set_source_files_properties(
     PROPERTIES COMPILE_OPTIONS
     "-DLV_LVGL_H_INCLUDE_SIMPLE;-Wno-format;"

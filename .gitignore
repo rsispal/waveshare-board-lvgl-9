@@ -1,4 +1,3 @@
 .DS_Store
-sdkconfig
 build
 managed_components
