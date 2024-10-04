@@ -15,8 +15,12 @@
 
 #include "domains/definitions.h"
 #include "domains/io/i2c/i2c.cpp"
+#include "domains/state/state.cpp"
 
 #include "domains/display/Display.cpp"
+#include "domains/display/screens/BaseScreenElements.cpp"
+#include "domains/display/screens/BaseScreen.cpp"
+#include "domains/display/screens/BootScreen.cpp"
 
 #include <stdio.h>
 #include "esp_system.h"
@@ -69,8 +73,12 @@ void log_task_stack_usage(TaskHandle_t task)
 
 
 I2CMaster *i2cMaster = nullptr;
+State *state = nullptr;
 
 Display *display = nullptr;
+
+BaseScreenElements *baseScreenElements = nullptr;
+BootScreen *bootScreen = nullptr;
 
 
 static void _app_button_cb(lv_event_t *e)
@@ -117,12 +125,21 @@ extern "C" void app_main(void)
 {
     i2cMaster = new I2CMaster(0,I2C_MASTER_SDA_IO,I2C_MASTER_SCL_IO,I2C_MASTER_FREQ_HZ, I2C_MASTER_TIMEOUT_MS);
     i2cMaster->begin();
-
     
     display = new Display(i2cMaster);
     
     // Initialise LCD, TFT and LVGL
     display->setup();
+
+    // /* LCD HW initialization */
+    // ESP_ERROR_CHECK(app_lcd_init());
+
+    // /* Touch initialization */
+    // ESP_ERROR_CHECK(app_touch_init());
+
+    // /* LVGL initialization */
+    // ESP_ERROR_CHECK(app_lvgl_init());
+
 
     lv_disp_t *dispp = lv_disp_get_default();
     lv_theme_t *theme = lv_theme_default_init(dispp, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
@@ -135,5 +152,17 @@ extern "C" void app_main(void)
     display->lvgl_mutex_unlock();
     vTaskDelay(pdMS_TO_TICKS(5000));
 
+    display->lvgl_mutex_lock(0);
+    state = new State();
 
+    baseScreenElements = new BaseScreenElements();
+    bootScreen = new BootScreen(baseScreenElements, state);
+
+
+    display->lvgl_mutex_unlock();
+
+    display->lvgl_mutex_lock(0);
+    bootScreen->load();
+    display->lvgl_mutex_unlock();
+    
 }
